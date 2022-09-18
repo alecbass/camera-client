@@ -1,0 +1,10 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "typescript.tsdk": "camera-client-web/node_modules/typescript/lib"
+  }
+}
