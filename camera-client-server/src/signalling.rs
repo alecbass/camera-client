@@ -29,11 +29,12 @@ impl SignallingServer {
                 Ok(stream) => stream,
                 Err(_e) => continue,
             };
+            let peer_addr = stream.peer_addr().unwrap();
 
-            // Can we do the handshake outside of the main thread?
-            self.add_client(stream);
-            println!("Capacity: {}/{}", self.clients.len(), CLIENT_LIMIT);
-            self.alert_clients();
+            if !self.get_addresses().contains(&peer_addr) {
+                self.add_client(stream, peer_addr);
+                self.alert_clients();
+            }
         }
     }
 
@@ -41,37 +42,36 @@ impl SignallingServer {
     fn get_addresses(&self) -> Vec<SocketAddr> {
         self.clients
             .values()
+            .filter(|(_, client)| client.is_running)
             .map(|value| value.0)
             .collect::<Vec<_>>()
     }
 
-    fn add_client(&mut self, stream: TcpStream) {
-        let peer_addr = stream.peer_addr().unwrap();
-
+    fn add_client(&mut self, stream: TcpStream, peer_addr: SocketAddr) {
         let id = self.next_id;
         self.next_id += 1;
 
         let mut client = Client::new(id);
 
-        println!("{:?}", peer_addr);
-
         client.start(stream);
-        if !self.get_addresses().contains(&peer_addr) {
-            self.clients.insert(id, (peer_addr, client));
-        }
+        self.clients.insert(id, (peer_addr, client));
     }
 
     fn alert_clients(&mut self) {
-        println!("Alerting clients");
         let mut ips: Vec<&SocketAddr> = Vec::new();
         let mut clients: Vec<&mut Client> = Vec::new();
         for (ip, client) in self.clients.values_mut() {
-            ips.push(ip);
-            clients.push(client);
+            if client.is_running {
+                ips.push(ip);
+                clients.push(client);
+            }
         }
 
         for client in clients {
-            client.alert(&ips);
+            if client.is_running {
+                println!("Alerting client {}", client.id);
+                client.alert(&ips);
+            }
         }
     }
 }
