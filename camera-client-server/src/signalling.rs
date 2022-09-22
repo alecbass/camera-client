@@ -1,7 +1,7 @@
 use super::client::Client;
 use std::{
     collections::HashMap,
-    net::{IpAddr, TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
 };
 
 const ENDPOINT: &'static str = "127.0.0.1:8000";
@@ -10,10 +10,8 @@ const CLIENT_LIMIT: i32 = 8;
 /** https://github.com/mdn/samples-server/blob/master/s/webrtc-from-chat/chatserver.js */
 pub struct SignallingServer {
     next_id: i32,
-    clients: HashMap<IpAddr, Client>,
+    clients: HashMap<i32, (SocketAddr, Client)>,
 }
-
-fn do_close(server: &SignallingServer, thing: i32) {}
 
 impl SignallingServer {
     pub fn new() -> Self {
@@ -35,32 +33,45 @@ impl SignallingServer {
             // Can we do the handshake outside of the main thread?
             self.add_client(stream);
             println!("Capacity: {}/{}", self.clients.len(), CLIENT_LIMIT);
+            self.alert_clients();
         }
     }
 
-    pub fn close_client(&self) {}
+    /** Returns all currently connected addresses */
+    fn get_addresses(&self) -> Vec<SocketAddr> {
+        self.clients
+            .values()
+            .map(|value| value.0)
+            .collect::<Vec<_>>()
+    }
 
     fn add_client(&mut self, stream: TcpStream) {
-        let peer_ip = stream.peer_addr().unwrap().ip();
-        let local_ip = stream.peer_addr().unwrap().ip();
+        let peer_addr = stream.peer_addr().unwrap();
 
         let id = self.next_id;
         self.next_id += 1;
 
-        let on_close = |ip_addr: IpAddr| {
-            let clients = &self.clients;
-        };
+        let mut client = Client::new(id);
 
-        let mut client = Client::new(id, peer_ip);
-
-        println!("{:?}", peer_ip);
-        println!("{:?}", local_ip);
+        println!("{:?}", peer_addr);
 
         client.start(stream);
-        // self.clients.push(client);
-        if !self.clients.contains_key(&peer_ip) {
-            println!("Existing client: {:?}", &peer_ip);
-            self.clients.insert(peer_ip, client);
+        if !self.get_addresses().contains(&peer_addr) {
+            self.clients.insert(id, (peer_addr, client));
+        }
+    }
+
+    fn alert_clients(&mut self) {
+        println!("Alerting clients");
+        let mut ips: Vec<&SocketAddr> = Vec::new();
+        let mut clients: Vec<&mut Client> = Vec::new();
+        for (ip, client) in self.clients.values_mut() {
+            ips.push(ip);
+            clients.push(client);
+        }
+
+        for client in clients {
+            client.alert(&ips);
         }
     }
 }
