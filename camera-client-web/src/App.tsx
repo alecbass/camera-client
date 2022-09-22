@@ -16,8 +16,14 @@ function createAudioUrl(data: Blob) {
 function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  const handleWsReceive = useCallback((data: Blob) => {
-    setAudioUrl(createAudioUrl(data));
+  const handleWsReceive = useCallback(async (data: Blob) => {
+    // setAudioUrl(createAudioUrl(data));
+    const peerAddresses = (await data.text()).split("\n");
+    console.debug(peerAddresses);
+    for (const address of peerAddresses) {
+      // https://levelup.gitconnected.com/what-powers-google-meet-and-microsoft-teams-webrtc-demystified-step-by-step-tutorial-e0cb422010f7
+      new RTCPeerConnection();
+    }
   }, []);
 
   const websocket = useMemo(() => {
